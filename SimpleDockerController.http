@@ -1,0 +1,6 @@
+@SimpleDockerController_HostAddress = http://localhost:5221
+
+GET {{SimpleDockerController_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

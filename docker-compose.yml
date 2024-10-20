@@ -1,0 +1,15 @@
+﻿services:
+  simple-docker-controller:
+    image: simple-docker-controller
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: simple-docker-controller
+    environment:
+      - DOCKER_SOCK_URI=unix:///var/run/docker.sock # Set according to OS/docker instance - https://github.com/dotnet/Docker.DotNet/blob/master/README.md
+      - SIMPLE_LIST=true  # Set this to "true" to only return the container names and their statuses
+      - ASPNETCORE_ENVIRONMENT=Development  # Enable development features
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
