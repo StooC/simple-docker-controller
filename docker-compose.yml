@@ -1,6 +1,7 @@
 ﻿services:
   simple-docker-controller:
     image: simple-docker-controller
+    user: "1001:999" # create a user (1001) and make them a member of the docker group (999 in this case) 
     build:
       context: .
       dockerfile: Dockerfile

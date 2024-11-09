@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Net.Sockets;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -46,7 +47,7 @@ public class DockerController : ControllerBase
     {
         try
         {
-            var containers = await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters() { All = true });
+            var containers = await GetAllRunningContainers();
 
             // Find the container ID of this application
             var currentContainerId = containers
@@ -67,23 +68,18 @@ public class DockerController : ControllerBase
             if (currentContainerId == null) 
                 return Ok("Stopped all other containers but could not self shutdown.");
             
-            await StopOrKillContainer(currentContainerId);
+            // await StopOrKillContainer(currentContainerId);
             return Ok("Stopped all other containers and requested self shutdown.");
         }
         catch (Exception ex)
         {
+            if (ex.InnerException is SocketException innerException)
+                return StatusCode(500, $"Socket Error: {innerException.Message}");
+            
             return StatusCode(500, $"Error shutting down all containers: {ex.Message}");
         }
     }
-
-    private async Task StopOrKillContainer(string containerId)
-    {
-        await _dockerClient.Containers.StopContainerAsync(containerId, new ContainerStopParameters()
-        {
-            WaitBeforeKillSeconds = _waitBeforeKill
-        });
-    }
-
+    
     // GET api/docker/list
     /// <summary>
     /// Lists all containers known to the docker instance
@@ -96,7 +92,7 @@ public class DockerController : ControllerBase
     {
         try
         {
-            var containers = await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters() { All = true });
+            var containers = await GetAllRunningContainers();
             var simpleList = Environment.GetEnvironmentVariable("SIMPLE_LIST")?.ToLower() == "true";
 
             if (!simpleList) 
@@ -112,7 +108,21 @@ public class DockerController : ControllerBase
         }
         catch (Exception ex)
         {
+            if (ex.InnerException is SocketException innerException)
+                return StatusCode(500, $"Socket Error: {innerException.Message}");
+            
             return StatusCode(500, $"Error listing containers: {ex.Message}");
         }
+    }
+    
+    private async Task<IList<ContainerListResponse>> GetAllRunningContainers()
+        => await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters() { All = false });
+    
+    private async Task StopOrKillContainer(string containerId)
+    {
+        await _dockerClient.Containers.StopContainerAsync(containerId, new ContainerStopParameters()
+        {
+            WaitBeforeKillSeconds = _waitBeforeKill
+        });
     }
 }
