@@ -18,6 +18,8 @@ public class DockerController : ControllerBase
     private readonly IHostApplicationLifetime _appLifetime;
     private readonly string _ignoreContainerName;
     private readonly uint? _waitBeforeKill;
+    private readonly bool _killSelf;
+    private readonly bool _allowList;
 
     /// <inheritdoc />
     public DockerController(IHostApplicationLifetime appLifetime)
@@ -33,6 +35,14 @@ public class DockerController : ControllerBase
         
         _waitBeforeKill = uint.Parse(Environment.GetEnvironmentVariable("WAIT_BEFORE_KILL") ?? "30");
         Console.WriteLine($"Wait before killing container: {_waitBeforeKill} seconds");
+
+        var killSelfValue = Environment.GetEnvironmentVariable("KILL_SELF");
+        if (!string.IsNullOrEmpty(killSelfValue) && bool.TryParse(killSelfValue, out _killSelf))
+            Console.WriteLine($"Kill Self Value set as: {_killSelf}");
+        
+        var allowListValue = Environment.GetEnvironmentVariable("ALLOW_LIST");
+        if (!string.IsNullOrEmpty(allowListValue) && bool.TryParse(allowListValue, out _allowList))
+            Console.WriteLine($"Allow List Value set as: {_allowList}");
     }
         
     // POST /shutdown/all
@@ -67,9 +77,16 @@ public class DockerController : ControllerBase
 
             if (currentContainerId == null) 
                 return Ok("Stopped all other containers but could not self shutdown.");
-            
-            // await StopOrKillContainer(currentContainerId);
-            return Ok("Stopped all other containers and requested self shutdown.");
+
+            if (!_killSelf)
+            {
+                Console.WriteLine("Stopped all other containers and requested self shutdown.");
+                return Ok("Stopped all other containers and requested self shutdown.");
+            }
+
+            Console.WriteLine("Self kill requested");
+            await StopOrKillContainer(currentContainerId);
+            return Ok("Stopped all other containers and self killed."); // this line should not execute as container killed
         }
         catch (Exception ex)
         {
@@ -90,6 +107,12 @@ public class DockerController : ControllerBase
     [ProducesResponseType(500)]
     public async Task<IActionResult> ListContainers()
     {
+        if (!_allowList)
+        {
+            Console.WriteLine($"Access to listing containers is disabled in configuration.");
+            throw new UnauthorizedAccessException();
+        }
+
         try
         {
             var containers = await GetAllRunningContainers();
